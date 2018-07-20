@@ -15,27 +15,29 @@ def find_ranges(iterable):
         else:
             yield 1000* group[0], 1000 + 1000*group[-1]
 
-            
+def signalAboveThresh(audioSnip, threshold):
+    continuousSignal = True
+    #list comprehension from current position to 50 places out
+    for amp in audioSnip:
+        if amp < threshold:
+                #if our amplitude drops below threshold, our signal is not continuous
+                continuousSignal = False
+                break
+    #only append to list if this is true!!!!
+    return continuousSignal
 
-#obtaining file
-def getParRanges():
-    soundTime = []
-    participantSoundTime = {}
-
-    counter = 0
-    maxCount = 50
-    threshold = 1000
-
-    for num in range(1, 33):
-        if num == 11 or num == 13 or num == 14 or num == 16 or num == 21 or num == 22 or num == 26 or num == 27:
-            continue
-        else:
-            #tori path:
-            filePathwayRead = os.path.expanduser("~/Desktop/SilenceTracker/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
-            #Jake path, just comment this out for the code to work on your end.  
-            filePathwayRead = os.path.expanduser("C:/Users/Jake From State Farm\Desktop/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
-            sampFreq, theSoundFile = wavfile.read(filePathwayRead)
-            print("Opening participant " + str(num) + " file. . . " + filePathwayRead)
+def singleParRange(num):
+        soundTime = []
+        counter = 0
+        maxCount = 50
+        threshold = 1000
+    
+     #tori path:
+        filePathwayRead = os.path.expanduser("~/Desktop/SilenceTracker/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
+        #Jake path, just comment this out for the code to work on your end.  
+        filePathwayRead = os.path.expanduser("C:/Users/Jake From State Farm\Desktop/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
+        sampFreq, theSoundFile = wavfile.read(filePathwayRead)
+        print("Opening participant " + str(num) + " file. . . " + filePathwayRead)
             
         for index, amp in enumerate(theSoundFile):
             #checking every 10th ms
@@ -48,26 +50,25 @@ def getParRanges():
                     if theSecond in soundTime:
                         continue
                     
-                    else:
-                        #checking if the signal is held for a short time
-                        continuousSignal = True
-                        #list comprehension from current position to 50 places out
-                        for amp in theSoundFile[index: index + maxCount]:
-                            if amp < threshold:
-                                    #if our amplitude drops below threshold, our signal is not continuous
-                                    continuousSignal = False
-                                    break
-                        #only append to list if this is true!!!!
-                        if continuousSignal == True:
-                            soundTime.append(theSecond)
+                    elif signalAboveThresh(theSoundFile[index: index + maxCount], threshold) == True:
+                        soundTime.append(theSecond)
                             
         #Changing the list format
-        soundTime = list(find_ranges(soundTime))
+        return list(find_ranges(soundTime))
+
+    
+#obtaining file
+def getParRanges():
+    
+    participantSoundTime = {}
+
+    for num in range(1, 4):
+        if num == 11 or num == 13 or num == 14 or num == 16 or num == 21 or num == 22 or num == 26 or num == 27:
+            continue
+        else:
         #adding completed list of times to a dictionary where participant # is key      
-        participantSoundTime[str(num)] = soundTime
-        #resetting everything
-        soundTime = []
-        threshold = 1000
+            participantSoundTime[str(num)] = singleParRange(num)
+            #resetting everything
         
     return participantSoundTime
 
