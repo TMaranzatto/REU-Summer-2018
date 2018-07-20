@@ -21,84 +21,94 @@
 import openpyxl
 import pandas as pd
 from openpyxl import load_workbook
-import os
 import numpy as np
 from matplotlib.ticker import MaxNLocator
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
+
+from pylab import *
+import pylab
+from scipy.io import wavfile
+import os
+import more_itertools as mit
 
 #importing the workbook.  Change this filepath for where the data is on your machine.
 wb = openpyxl.load_workbook('C:\\Users\\Jake From State Farm\\Desktop\\Peaks pr respondent.xlsx')
 data_folder = 'C:/Users/Jake From State Farm/AppData/Local/Programs/Python/Python36-32/Sensor Data'
 sheet = wb['Peaks pr respondent']
 
-####################################DEPRECATED########################################
-###generic function that can work for times, amplitudes, etc.
-##def getSinglePeak(val_list, participant):
-##    value = 0
-##    for val in val_list:
-##        if val > value:
-##            value = val
-##    return value
-##
-##def peakToTime(val, participant):
-##    for cell in sheet['E']:
-##        if cell.value == ('Participant ' + str(participant)):
-##            row = cell.row
-##            if sheet['L' + str(row)].value == val:
-##                return sheet['J' + str(row)].value
-##    return(-1)
-##
-##def getAnalysisRange(value):
-##    if value == -1:
-##        return (-1, -1)
-##    min_time = 0
-##    #need to update this later, this is just placeholder
-##    max_time = 336000
-##    lower_bound = max(min_time, value - 10000)
-##    upper_bound = min(max_time, value + 10000)
-##    return (lower_bound, upper_bound)
-##
-##
-###returns the highest peak amplitudes for each participant in a dictionary format {participant: peaks}
-##def getPeaks(participant, num_of_peaks):
-##    value_list = []
-##    for cell in sheet['E']:
-##        if cell.value == ('Participant ' + str(participant)):
-##            row = cell.row
-##            value_list.append(sheet['L' + str(row)].value)
-##
-##    peak_list = []
-##    for i in range(num_of_peaks):
-##        temp_val = getSinglePeak(value_list, participant)
-##
-##        if len(value_list) == 0:
-##            peak_list.append(-1)
-##
-##        else:
-##            peak_list.append(temp_val)
-##            value_list.remove(temp_val)
-##
-##    return {participant: peak_list}
-##
-##
-##def getAllPeaks(num_of_peaks):
-##    #assumming we have 32 participants..
-##    peak_list_complete = {}
-##    for i in range(1, 33):
-##        temp_peaks = getPeaks(i, num_of_peaks)
-##        peak_list_complete.update(temp_peaks)
-##
-##    return peak_list_complete
-##
-##def getAllTimes(num_of_peaks):
-##    #this first implementation works with the overanalyze paradigm we discussed
-##    #will try the other implementation after this works
-##    peak_dict = getAllPeaks(num_of_peaks)
-##    for i in range(1, 33):
-##        peak_dict[i] = [getAnalysisRange(peakToTime(x, i)) for x in peak_dict[i]]
-##    #peak_dict = {x: getAnalysisRange(x) for x in peak_dict}
-##    return peak_dict
+####################################AUDIO########################################
+def find_ranges(iterable):
+    """Yield range of consecutive numbers."""
+    for group in mit.consecutive_groups(iterable):
+        group = list(group)
+        if len(group) == 1:
+            yield int(1000 * group[0]), int(1000 + 1000 * group[0])
+        else:
+            yield int(1000* group[0]), int(1000 + 1000*group[-1])
+
+def signalAboveThresh(audioSnip, threshold):
+    continuousSignal = True
+    #list comprehension from current position to 50 places out
+    for amp in audioSnip:
+        if amp < threshold:
+                #if our amplitude drops below threshold, our signal is not continuous
+                continuousSignal = False
+                break
+    #only append to list if this is true!!!!
+    return continuousSignal
+
+def singleParRange(num):
+        soundTime = []
+        counter = 0
+        maxCount = 50
+        threshold = 1000
+
+
+    #GETTING SOUND DATA
+         #tori path:
+        filePathwayRead = os.path.expanduser("~/Desktop/SilenceTracker/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
+        #Jake path, just comment this out for the code to work on your end.  
+        filePathwayRead = os.path.expanduser("C:/Users/Jake From State Farm\Desktop/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
+        sampFreq, theSoundFile = wavfile.read(filePathwayRead)
+        print("Opening participant " + str(num) + " Audio file. . . " + filePathwayRead)
+
+     #ANALYZING DATA
+        print("Getting participant " + str(num) + "'s Spoken Times. . . ")
+        for index, amp in enumerate(theSoundFile):
+            #checking every 10th ms
+            if index % 10 == 0:
+                if abs(amp) > threshold:
+                    theSecond = round(index/100000, 0)
+                    
+                    #checking if our second is already in the list.  No need to check if
+                    #we have already analyzed this second and found audio signals
+                    if theSecond in soundTime:
+                        continue
+                    
+                    #this function looks awful but its only checking if our signal
+                    #holds for more than 50 milliseconds (this paramater under maxCount)
+                    #if yes then we append this second to the list
+                    elif signalAboveThresh(theSoundFile[index: index + maxCount], threshold) == True:
+                        soundTime.append(theSecond)
+                            
+        #Changing the list format
+        return list(find_ranges(soundTime))
+
+    
+#obtaining file
+def getParRanges():
+    
+    participantSoundTime = {}
+
+    for num in range(1, 4):
+        if num == 11 or num == 13 or num == 14 or num == 16 or num == 21 or num == 22 or num == 26 or num == 27:
+            continue
+        else:
+            #adding completed list of times to a dictionary where participant # is key      
+            participantSoundTime[str(num)] = singleParRange(num)
+        
+    return participantSoundTime
 
 ###########################################################################
 #################GETTING HEARTRATE DERIVATIVE#############################
@@ -262,10 +272,15 @@ if 0:
 ##using pandas library here, trying out different libraries to see which ones i prefer
 
 
-def getSingleGSRAvg(file, startTIme, endTime):
+def getSingleGSRAvg(file, times):
+        initTime = times[0]
+        endTime = times[1]
+        print('times are: ' + str(times))
         path = data_folder + '/' +  file
+        print('Opening GSR File.  This could take a few moments.')
         df = pd.read_excel(path, header = None, usecols = [167])
-        vals = df.iloc[startTIme:endTime].mean()
+        print('Calculating GSR Mean in your interval...')
+        vals = df.iloc[initTime, endTime].mean()
         try:
             print(vals[0])
             return vals[0]
@@ -273,18 +288,25 @@ def getSingleGSRAvg(file, startTIme, endTime):
             print(-1)
             return -1
 
-def getAllAvg(startTIme, endTime, condition):
+def getAllAvg(times, condition):
         #this may complain about double \\ in data_folder dir name
         arr = []
         for i, file in enumerate(os.listdir(data_folder)):
                 if getCondition(i) == condition:
-                    arr.append(getSingleGSRAvg(file, startTIme, endTime))
+                    arr.append(getSingleGSRAvg(file, times[0], times[1]))
         return arr
     
-print(getAllAvg(5, 10000, 0))
+def GSRAudioInterest(participant):
+    #getting file
+    averages = []
+    file = os.listdir(data_folder)[participant]
+    ranges = singleParRange(participant)
+    for tupl in ranges:
+        print('your tuple is: ' + str(tupl))
+        averages.append(getSingleGSRAvg(file, tupl))
 
 
-
+print(GSRAudioInterest(1))
 
 
 

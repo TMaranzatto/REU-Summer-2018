@@ -31,25 +31,32 @@ def singleParRange(num):
         counter = 0
         maxCount = 50
         threshold = 1000
-    
-     #tori path:
+
+
+    #GETTING SOUND DATA
+         #tori path:
         filePathwayRead = os.path.expanduser("~/Desktop/SilenceTracker/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
         #Jake path, just comment this out for the code to work on your end.  
         filePathwayRead = os.path.expanduser("C:/Users/Jake From State Farm\Desktop/TrimmedAudioFiles/Participant"+str(num)+"Trim.wav")
         sampFreq, theSoundFile = wavfile.read(filePathwayRead)
         print("Opening participant " + str(num) + " file. . . " + filePathwayRead)
-            
+
+     #ANALYZING DATA
+        
         for index, amp in enumerate(theSoundFile):
             #checking every 10th ms
             if index % 10 == 0:
-                
                 if abs(amp) > threshold:
                     theSecond = round(index/100000, 0)
                     
-                    #checking if our second is already in the list.  Should speed things up considerably
+                    #checking if our second is already in the list.  No need to check if
+                    #we have already analyzed this second and found audio signals
                     if theSecond in soundTime:
                         continue
                     
+                    #this function looks awful but its only checking if our signal
+                    #holds for more than 50 milliseconds (this paramater under maxCount)
+                    #if yes then we append this second to the list
                     elif signalAboveThresh(theSoundFile[index: index + maxCount], threshold) == True:
                         soundTime.append(theSecond)
                             
@@ -66,14 +73,15 @@ def getParRanges():
         if num == 11 or num == 13 or num == 14 or num == 16 or num == 21 or num == 22 or num == 26 or num == 27:
             continue
         else:
-        #adding completed list of times to a dictionary where participant # is key      
+            #adding completed list of times to a dictionary where participant # is key      
             participantSoundTime[str(num)] = singleParRange(num)
-            #resetting everything
         
     return participantSoundTime
 
 
 print(getParRanges())
+
+
 #if you want to see graphs of soundwave
 
 #timeArray = (arange(0, theSoundFile.shape[0], 1)/sampFreq)
