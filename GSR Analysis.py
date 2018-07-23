@@ -15,6 +15,10 @@
 #make box and whisker plot
 #get gsr baseline
 
+#make audio-gsr graph similar to gsr peak analysis.
+    #-if a speaking interval has a gsr peak, plot 1 in that inverval.  for each participant
+    #-compare vr vs. monitor conditions
+    #-try get t-tests for these
 
 
 # get first and second half gsr values across groups
@@ -37,6 +41,8 @@ wb = openpyxl.load_workbook('C:\\Users\\Jake From State Farm\\Desktop\\Peaks pr 
 data_folder = 'C:/Users/Jake From State Farm/AppData/Local/Programs/Python/Python36-32/Sensor Data'
 sheet = wb['Peaks pr respondent']
 
+performance_length = 336000
+
 ####################################AUDIO########################################
 def find_ranges(iterable):
     """Yield range of consecutive numbers."""
@@ -58,7 +64,7 @@ def signalAboveThresh(audioSnip, threshold):
     #only append to list if this is true!!!!
     return continuousSignal
 
-def singleParRange(num):
+def singleParRange(num, doTransformOutput):
         soundTime = []
         counter = 0
         maxCount = 50
@@ -93,6 +99,7 @@ def singleParRange(num):
                         soundTime.append(theSecond)
                             
         #Changing the list format
+        if doTransformOutput
         return list(find_ranges(soundTime))
 
     
@@ -168,9 +175,6 @@ if 0:
 ###########################################################################
 ########################FINDING GSR PEAKS##################################
 ###########################################################################
-
-
-performance_length = 336000
 def makeBins(n_bins):
     bin_length = performance_length / n_bins
     bins = []
@@ -210,7 +214,7 @@ def isPeak(participant, time_range, activation_threshold,single_or_total):
     else:
         return val
 
-def histogramData(condition, activation_threshold, n_bins, single_or_total):
+def histogramGSRData(condition, activation_threshold, n_bins, single_or_total):
     #loop through participants
     bins = makeBins(n_bins)
     data = [0 for x in range(len(bins))]
@@ -221,6 +225,7 @@ def histogramData(condition, activation_threshold, n_bins, single_or_total):
                 data[j] += isPeak(participant, bins[j], activation_threshold, single_or_total)
     return data
 
+def histogramAudioData(condition, 
 
 if 0:
     ##PARAMETERS##
@@ -230,8 +235,8 @@ if 0:
     ################
 
     my_bins = int(336/timestep)
-    x1 = histogramData(1, threshold, my_bins, single_or_total)
-    x2 = histogramData(0, threshold, my_bins, single_or_total)
+    x1 = histogramGSRData(1, threshold, my_bins, single_or_total)
+    x2 = histogramGSRData(0, threshold, my_bins, single_or_total)
     bar_width = .3* timestep
 
     bins = makeBins(my_bins)
@@ -250,7 +255,7 @@ if 0:
     rects2 = ax.bar(y2 , x2, bar_width, error_kw=error_config, label='Monitor')
 
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Participant Peaks (Threshold = ' + str(threshold) + ')')
+    ax.set_ylabel('Number of Participants with peaks above' + str(threshold))
     ax.set_title('GSR Peaks per ' + str(timestep) + ' Second Bin')
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend()
@@ -270,22 +275,28 @@ if 0:
 
 ###########################GSR MEAN SCORES###########################################
 ##using pandas library here, trying out different libraries to see which ones i prefer
+def complimentIntervals(timeRange, listOfIntervals):
+    compliment = []
+    lastval = 0
+    for interval in listOfIntervals:
+        if interval[0] != 0:
+            compliment.append((lastval, interval[0]))
+        lastval = interval[1]
+    return compliment
 
+    
 
-def getSingleGSRAvg(file, times):
+def getSingleGSRAvg(times, df):
         initTime = times[0]
         endTime = times[1]
+        df = df.iloc[initTime:endTime]
         print('times are: ' + str(times))
-        path = data_folder + '/' +  file
-        print('Opening GSR File.  This could take a few moments.')
-        df = pd.read_excel(path, header = None, usecols = [167])
         print('Calculating GSR Mean in your interval...')
-        vals = df.iloc[initTime, endTime].mean()
         try:
+            vals = df.mean()
             print(vals[0])
             return vals[0]
         except:
-            print(-1)
             return -1
 
 def getAllAvg(times, condition):
@@ -296,17 +307,53 @@ def getAllAvg(times, condition):
                     arr.append(getSingleGSRAvg(file, times[0], times[1]))
         return arr
     
-def GSRAudioInterest(participant):
+def getGSR(times, df):
+    initTime = times[0]
+    endTime = times[1]
+    x = df.iloc[initTime:endTime]
+    return x
+
+def boxPlot(participant, ranges):
+    #getting file
+    file = os.listdir(data_folder)[participant]
+    path = data_folder + '/' +  file
+    #print('Opening GSR File.  This could take a few moments.')
+    df = pd.read_excel(path, header = None, usecols = [167])
+    
+    data = []
+    column = []
+    for tupl in ranges:
+        if getGSR(tupl, df).empty:
+            continue
+        else:
+            x = (tupl[0]/1000, tupl[1]/1000)
+            column.append(str(x))
+            data.append(getGSR(tupl, df))
+
+    df = pd.concat(data, axis = 1)
+    df.columns = column
+    df.plot.box()
+    plt.show()
+    
+def GSRAudioInterest(participant, ranges):
     #getting file
     averages = []
     file = os.listdir(data_folder)[participant]
-    ranges = singleParRange(participant)
+    path = data_folder + '/' +  file
+    print('Opening GSR File.  This could take a few moments.')
+    df = pd.read_excel(path, header = None, usecols = [167])
+    #print(df)
     for tupl in ranges:
-        print('your tuple is: ' + str(tupl))
-        averages.append(getSingleGSRAvg(file, tupl))
+        #print('your tuple is: ' + str(tupl))
+        averages.append(getSingleGSRAvg(tupl, df))
+        
+    return averages
 
-
-print(GSRAudioInterest(1))
+participant = 3
+ranges = singleParRange(participant)
+rangesCompliment = complimentIntervals(performance_length, ranges)
+boxPlot(participant, ranges)
+#boxPlot(participant, rangesCompliment)
 
 
 
